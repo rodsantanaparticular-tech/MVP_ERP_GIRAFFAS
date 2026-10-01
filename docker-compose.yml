@@ -1,0 +1,303 @@
+# =============================================================================
+# MVP ERP Giraffas — stack unificada (Local-First / Nuvem Própria, 24x7)
+#
+#   docker compose up -d                          # núcleo: postgres, api, worker, console, n8n, backup, autoheal
+#   docker compose --profile publico up -d        # + túnel Cloudflare (acesso externo sem abrir porta)
+#   docker compose --profile rpa up -d            # + EXPERIMENTO: Chrome headful em Xvfb + noVNC
+#
+# Portas propositalmente diferentes do sistema atual (8000/55432) para rodar
+# LADO A LADO durante a transição. Tudo publicado só em 127.0.0.1.
+# Dados vivos ficam em volume nomeado (postgres/n8n) e em ${DATA_DIR} — que
+# deve estar FORA de OneDrive/Google Drive.
+#
+# Serviços api/worker/console/rpa dependem dos Dockerfiles da Fase 1
+# (infra/docker/*.Dockerfile); postgres/n8n/backup/autoheal sobem já.
+# =============================================================================
+
+name: erp-giraffas
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-app-env: &app-env
+  TZ: America/Sao_Paulo
+  APP_ENV: ${APP_ENV:-producao}
+  POSTGRES_HOST: postgres
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER}             # dono do schema: só migrações
+  APP_DB_USER: ${APP_DB_USER:-erp_app}        # papel da aplicação: sujeito a RLS
+  APP_DB_PASSWORD_FILE: /run/secrets/app_db_password
+  ERP_MASTER_KEY_FILE: /run/secrets/erp_master_key
+  JWT_SECRET_FILE: /run/secrets/jwt_secret
+  JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
+  DATA_ROOT: /data
+  CREDENTIAL_PROVIDER: vault          # vault | keyring (keyring só no host agent, durante a transição)
+  CAPTCHA_PROVIDER: manual            # decisão do projeto: nunca resolução automática
+
+services:
+  # ---------------------------------------------------------------- banco
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      TZ: America/Sao_Paulo
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      APP_DB_USER: ${APP_DB_USER:-erp_app}
+      APP_DB_PASSWORD_FILE: /run/secrets/app_db_password
+      N8N_DB: ${N8N_DB:-n8n}
+      N8N_DB_USER: ${N8N_DB_USER:-n8n}
+      N8N_DB_PASSWORD_FILE: /run/secrets/n8n_db_password
+    secrets: [postgres_password, app_db_password, n8n_db_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?defina POSTGRES_USER no .env} -d ${POSTGRES_DB:?defina POSTGRES_DB no .env}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 256mb
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- API (FastAPI)
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    image: erp-giraffas/app:${APP_VERSION:-latest}
+    restart: always
+    environment:
+      <<: *app-env
+      ROLE: api
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    # migrações antes de subir; sem --reload em produção
+    command:
+      - sh
+      - -c
+      - alembic -c database/alembic.ini upgrade head && exec gunicorn api.main:app -k uvicorn.workers.UvicornWorker -w ${API_WORKERS:-2} -b 0.0.0.0:8000 --timeout 120
+    secrets: [postgres_password, app_db_password, erp_master_key, jwt_secret]
+    volumes:
+      - ${DATA_DIR}/dashboards:/data/dashboards
+      - ${DATA_DIR}/entrada:/data/entrada          # upload manual de relatórios
+      - ${DATA_DIR}/uploads:/data/uploads          # screenshots de rpa_erros
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8100}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- worker (jobs SEM navegador)
+  worker:
+    image: erp-giraffas/app:${APP_VERSION:-latest}
+    restart: always
+    environment:
+      <<: *app-env
+      ROLE: worker
+      WORKER_EXECUTOR: worker
+      WORKER_CONCORRENCIA: ${WORKER_CONCORRENCIA:-2}
+    command: ["python", "-m", "automations.runner.worker"]
+    secrets: [app_db_password, erp_master_key]
+    volumes:
+      - ${DATA_DIR}/entrada:/data/entrada
+      - ${DATA_DIR}/processados:/data/processados
+      - ${DATA_DIR}/dashboards:/data/dashboards
+      - ${DATA_DIR}/logs:/data/logs
+      # Fase 2 (sombra): lê as MESMAS entradas do sistema atual, somente leitura
+      - ${LEGADO_ENTRADA_DIR:-./.legado-vazio}:/data/legado/01_entrada:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:   # o worker grava heartbeat a cada ciclo; >120 s parado = unhealthy
+      test: ["CMD", "python", "-m", "automations.runner.worker", "--healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- console TI / Eng. Dados (Streamlit)
+  console:
+    image: erp-giraffas/app:${APP_VERSION:-latest}
+    restart: always
+    environment:
+      TZ: America/Sao_Paulo
+      ROLE: console
+      API_BASE_URL: http://api:8000       # console NÃO acessa o banco direto: passa pela API (RBAC)
+    command: >
+      streamlit run dashboards/console/app.py
+      --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "127.0.0.1:${CONSOLE_HOST_PORT:-8501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health',timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- n8n (agendamento + alertas)
+  n8n:
+    image: n8nio/n8n:${N8N_VERSION:-latest}   # fixar versão testada na Fase 1
+    restart: always
+    environment:
+      TZ: America/Sao_Paulo
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${N8N_DB:-n8n}
+      DB_POSTGRESDB_USER: ${N8N_DB_USER:-n8n}
+      DB_POSTGRESDB_PASSWORD_FILE: /run/secrets/n8n_db_password
+      N8N_ENCRYPTION_KEY_FILE: /run/secrets/n8n_encryption_key
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: 720        # horas (30 dias)
+      ERP_API_BASE_URL: http://api:8000   # workflows enfileiram jobs via API com token de serviço
+    secrets: [n8n_db_password, n8n_encryption_key]
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro     # workflows versionados (import manual/CLI)
+    ports:
+      - "127.0.0.1:${N8N_HOST_PORT:-5678}:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- backup (pg_dump com retenção)
+  backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: always
+    environment:
+      TZ: America/Sao_Paulo
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB},${N8N_DB:-n8n}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_EXTRA_OPTS: "-Z6 --format=custom"
+      SCHEDULE: "0 30 2 * * *"            # todo dia 02:30 (fora da rodada das 07:00)
+      BACKUP_KEEP_DAYS: 14
+      BACKUP_KEEP_WEEKS: 8
+      BACKUP_KEEP_MONTHS: 12
+      HEALTHCHECK_PORT: 8080
+    secrets: [postgres_password]
+    volumes:
+      - ${DATA_DIR}/backups:/backups      # pasta mapeada: copiar para fora da máquina (3-2-1)
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels: [autoheal=true]
+    logging: *logging
+
+  # ---------------------------------------------------------------- autoheal
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: always
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 30
+      AUTOHEAL_START_PERIOD: 120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *logging
+
+  # ---------------------------------------------------------------- [perfil publico] Cloudflare Tunnel
+  cloudflared:
+    profiles: [publico]
+    image: cloudflare/cloudflared:latest
+    restart: always
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_token   # proteger com Cloudflare Access (login/2FA)
+    secrets: [cloudflared_token]
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  # ---------------------------------------------------------------- [perfil rpa] EXPERIMENTO navegador visível
+  # Chrome headful sobre Xvfb; noVNC em 127.0.0.1:6080 para um humano resolver
+  # captcha/login assistido. NÃO contorna captcha. Se o WAF do GCOM bloquear,
+  # o executor definitivo continua sendo o host agent no Windows.
+  rpa:
+    profiles: [rpa]
+    build:
+      context: .
+      dockerfile: infra/docker/rpa.Dockerfile
+    image: erp-giraffas/rpa:${APP_VERSION:-latest}
+    restart: always
+    environment:
+      <<: *app-env
+      ROLE: rpa
+      WORKER_EXECUTOR: rpa_container
+      DISPLAY: ":99"
+    command: ["python", "-m", "automations.runner.worker"]
+    secrets: [app_db_password, erp_master_key]
+    volumes:
+      - ${DATA_DIR}/rpa_profiles:/data/rpa_profiles   # sessões logadas = segredo
+      - ${DATA_DIR}/entrada:/data/entrada
+      - ${DATA_DIR}/logs:/data/logs
+    ports:
+      - "127.0.0.1:${NOVNC_HOST_PORT:-6080}:6080"
+    shm_size: 1gb
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:
+  n8n_data:
+
+secrets:
+  postgres_password:
+    file: ${DATA_DIR}/secrets/postgres_password
+  app_db_password:
+    file: ${DATA_DIR}/secrets/app_db_password
+  n8n_db_password:
+    file: ${DATA_DIR}/secrets/n8n_db_password
+  n8n_encryption_key:
+    file: ${DATA_DIR}/secrets/n8n_encryption_key
+  erp_master_key:
+    file: ${DATA_DIR}/secrets/erp_master_key
+  jwt_secret:
+    file: ${DATA_DIR}/secrets/jwt_secret
+  cloudflared_token:
+    file: ${DATA_DIR}/secrets/cloudflared_token

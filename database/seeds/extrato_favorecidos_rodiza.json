@@ -1,0 +1,56 @@
+{
+  "_sobre": "Normalização da coluna Fornecedor da planilha 15_Bradesco_tratado (o favorecido do extrato). 'grafias': a mesma pessoa/empresa escrita de jeitos diferentes na planilha (MG Comercial Bebidas e Carnes = BOITIQUE Bebidas, pela razão social no GCOM). 'fornecedor_crm': favorecido → nome do fornecedor no CRM do IN-360. 'sem_favorecido': valores da planilha que significam 'não classificado'.",
+  "grafias": {
+    "SKTEF": "SKYTEF",
+    "BOUTIQUE": "BOITIQUE",
+    "MG BEBIDAS": "BOITIQUE",
+    "MG COMERCIAL": "BOITIQUE",
+    "COMERCIAL BEBIDAS": "BOITIQUE",
+    "CAMILY": "CAMILLY",
+    "FRED": "FREDERICO",
+    "MANU": "EMANUELLY",
+    "LU": "LUCIANA",
+    "BANCO": "BRADESCO",
+    "RODIZA": "CIELO PIX"
+  },
+  "fornecedor_crm": {
+    "MB": "RFG",
+    "MULTIPLAN": "Multiplan / BH Shopping",
+    "KELMINAS": "Kelminas",
+    "RIBEIRO LEGUMES": "Ribeiro",
+    "JM": "JM",
+    "CARREFOUR": "Carrefour",
+    "GCOM": "GCOM",
+    "BH CLEAN": "BHClean",
+    "JGRACIA": "JGracia Informática",
+    "CLARO": "Claro (TV)",
+    "TERMOTEC": "Termotec",
+    "GIRAFFAS": "Giraffas Administradora de Franquia",
+    "WAY TV": "Way & Com Tecnologia",
+    "DIAMANTE": "Diamante Gestão Empresarial"
+  },
+  "classificacoes": {
+    "FUNDO DE MKT": "FUNDO MKT",
+    "IMPOSTO": "IMPOSTOS",
+    "DESPESAS": "DESPESA"
+  },
+  "sem_favorecido": ["NÃO CLASSIFICADO - REVISAR"],
+  "_sobre_regras_manuais": "Regras decididas fora da planilha (30/09): MB = RFG (usuário); Getnet pelo extrato enquanto não há acesso ao portal (usuário); Pix de venda pela Getnet (Santander, mar–jul/26; antes e depois o Pix é Cielo no Bradesco), tarifa/IOF do Santander e Pix ao sócio = retirada (como no Bradesco). Têm prioridade sobre as aprendidas.",
+  "regras_manuais": [
+    {"padrao": "PAGTO ELETRON COBRANCA GIRAFFAS", "tipo": "prefixo", "natureza": "D", "favorecido": "GIRAFFAS", "classificacao": null,
+     "_sobre": "Usuário, 30/09: royalties vence dia 20, fundo de marketing no último dia do mês (fim de semana → próximo dia útil); REFIN = 2 boletos fixos. Confirmado no e-mail: 'BOLETO ROYALTIES - VENCIMENTO 20/03/2026 (Ref. FEVEREIRO/2026)'.",
+     "parametros": {"calendario": [
+       {"classificacao": "REFIN", "valores": ["2419.16", "1747.35"], "dia": 15},
+       {"classificacao": "ROYALTIES", "dia": 20},
+       {"classificacao": "FUNDO MKT", "dia": "ultimo"}]}},
+    {"padrao": "PAGTO ELETRON COBRANCA REFIN GIRAFFAS", "tipo": "prefixo", "natureza": "D", "favorecido": "GIRAFFAS", "classificacao": "REFIN"},
+    {"padrao": "PAGTO ELETRON COBRANCA MB","tipo": "prefixo", "natureza": "D", "favorecido": "MB", "classificacao": "INSUMO"},
+    {"padrao": "PAGAMENTO CARTAO DE CREDITO GETNET", "tipo": "prefixo", "natureza": "C", "favorecido": "GETNET", "classificacao": "CREDITO"},
+    {"padrao": "PAGAMENTO CARTAO DE DEBITO GETNET", "tipo": "prefixo", "natureza": "C", "favorecido": "GETNET", "classificacao": "DEBITO"},
+    {"padrao": "^PIX RECEBIDO( \\d+)?$", "tipo": "regex", "natureza": "C", "favorecido": "GETNET PIX", "classificacao": "PIX"},
+    {"padrao": "TARIFA PIX RECEBIDO QR CHECKOUT", "tipo": "prefixo", "natureza": "D", "favorecido": "SANTANDER", "classificacao": "ENCARGO"},
+    {"padrao": "JUROS SALDO UTILIZ", "tipo": "prefixo", "natureza": "D", "favorecido": "SANTANDER", "classificacao": "ENCARGO"},
+    {"padrao": "IOF ","tipo": "prefixo", "natureza": "D", "favorecido": "IOF", "classificacao": "ENCARGO"},
+    {"padrao": "PIX ENVIADO RODRIGO SANT ANA", "tipo": "prefixo", "natureza": "D", "favorecido": "RODRIGO", "classificacao": "RETIRADA"}
+  ]
+}

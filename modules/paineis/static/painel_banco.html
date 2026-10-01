@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IN-360 · Banco e caixa</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #111827; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #1d4ed8; --accent-soft: #dbeafe; --cat: #f3f4f6; --pos: #047857; --neg: #b91c1c; --warn: #b45309;
+    --warn-soft: #fef3c7; --bar-pos: #6ee7b7; --bar-neg: #fca5a5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #171a21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f3a; --accent: #60a5fa;
+            --accent-soft: #1e3a5f; --cat: #1f2430; --pos: #34d399; --neg: #f87171; --warn: #f59e0b;
+            --warn-soft: #3a2a0a; --bar-pos: #065f46; --bar-neg: #7f1d1d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+           padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; } header h1 span { color: var(--muted); font-weight: 400; }
+  nav a { margin-right: 14px; color: var(--muted); text-decoration: none; } nav a.on { color: var(--accent); font-weight: 600; }
+  main { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 6px 12px; }
+  button.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
+  select, input { border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 6px 9px; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  #login { max-width: 360px; margin: 12vh auto; display: grid; gap: 10px; } #login h2 { margin: 0 0 4px; font-size: 18px; }
+  .erro { color: var(--neg); font-size: 13px; min-height: 18px; }
+  .linha { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .rotulo { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 14px 0; }
+  .kpi .v { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .aviso { background: var(--warn-soft); border: 1px solid var(--warn); color: var(--ink); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
+  .aviso b { color: var(--warn); } .aviso ul { margin: 6px 0 0; padding-left: 18px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { background: var(--card); font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  tbody tr.mes { cursor: pointer; } tbody tr.mes:hover td { background: var(--cat); }
+  tr.sel td { background: var(--accent-soft) !important; }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
+  .tag { display: inline-block; font-size: 10.5px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; background: var(--cat); color: var(--muted); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  .grupo td:first-child { white-space: normal; }
+  .barra { height: 5px; background: var(--line); border-radius: 3px; margin-top: 4px; }
+  .barra i { display: block; height: 100%; border-radius: 3px; }
+  .rolagem { max-height: 520px; overflow: auto; }
+  td.hist { white-space: normal; text-align: left; max-width: 520px; }
+  .oculto { display: none !important; }
+  h3 { margin: 0 0 8px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>IN-360 <span>· Banco e caixa</span></h1>
+  <nav><a href="/painel">Fornecedores</a><a href="/painel/banco" class="on">Banco e caixa</a></nav>
+  <div id="usuario" class="small muted"></div>
+</header>
+
+<form id="login" class="card oculto" autocomplete="on">
+  <h2>Entrar</h2>
+  <input id="email" type="email" placeholder="E-mail" required autocomplete="username">
+  <input id="senha" type="password" placeholder="Senha" required autocomplete="current-password">
+  <button class="primario" type="submit">Entrar</button>
+  <div id="erroLogin" class="erro"></div>
+</form>
+
+<main id="app" class="oculto">
+  <section class="card linha">
+    <span class="rotulo">De</span><select id="de"></select>
+    <span class="rotulo">Até</span><select id="ate"></select>
+    <span class="rotulo">Conta</span><select id="conta"><option value="">Todas</option></select>
+    <button type="button" class="primario" id="atualizar">Atualizar</button>
+    <span id="cobertura" class="small muted"></span>
+  </section>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="rotulo">Entradas</div><div class="v pos" id="kEnt">–</div></div>
+    <div class="card kpi"><div class="rotulo">Saídas</div><div class="v neg" id="kSai">–</div></div>
+    <div class="card kpi"><div class="rotulo">Resultado (entradas − saídas)</div><div class="v" id="kRes">–</div></div>
+    <div class="card kpi"><div class="rotulo">Saldo no fim do período</div><div class="v" id="kSaldo">–</div><div class="small muted" id="kSaldoSub"></div></div>
+  </section>
+
+  <div id="avisos"></div>
+
+  <section class="card">
+    <h3>Movimento por mês <span class="small muted">· clique num mês para ver o detalhe</span></h3>
+    <table>
+      <thead><tr><th>Mês</th><th>Saldo inicial</th><th>Entradas</th><th>Saídas</th><th>Resultado</th><th>Saldo final</th><th>Lançamentos</th></tr></thead>
+      <tbody id="meses"></tbody>
+    </table>
+  </section>
+
+  <section id="detalhe" class="oculto">
+    <div class="grid2">
+      <div class="card"><h3>Entradas por tipo · <span id="dMes1"></span></h3><table><tbody id="gEnt"></tbody></table></div>
+      <div class="card"><h3>Saídas por tipo · <span id="dMes2"></span></h3><table><tbody id="gSai"></tbody></table></div>
+    </div>
+    <section class="card">
+      <div class="linha" style="margin-bottom:8px">
+        <h3 style="margin:0">Lançamentos</h3>
+        <select id="tipo"><option value="todos">Entradas e saídas</option><option value="entradas">Só entradas</option><option value="saidas">Só saídas</option></select>
+        <input id="busca" type="search" placeholder="Buscar no histórico…">
+        <span id="qtd" class="small muted"></span>
+      </div>
+      <div class="rolagem"><table>
+        <thead><tr><th>Data</th><th>Conta</th><th style="text-align:left">Histórico</th><th>Valor</th><th>Saldo</th></tr></thead>
+        <tbody id="lanc"></tbody>
+      </table></div>
+    </section>
+  </section>
+  <p class="small muted">Fonte: extratos originais do Bradesco e do Santander (entradas e saídas), conferidos pelo saldo linha a linha.
+    Meses antes de fev/26 mostram só o banco: o faturamento no GCOM começa em 02/02/2026.</p>
+</main>
+
+<script>
+const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const NOMES_MES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+const est = { token: null, tenant: null, contas: [], resumo: [], mesSel: null, busca: null };
+const $ = (id) => document.getElementById(id);
+const rotuloMes = (m) => `${NOMES_MES[+m.slice(5) - 1]}/${m.slice(2, 4)}`;
+const dataBr = (d) => d ? `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}` : "";
+const num = (v) => Number(v || 0);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const cor = (v) => v > 0 ? "pos" : v < 0 ? "neg" : "";
+try { est.token = sessionStorage.getItem("in360_token"); } catch (e) {}
+
+async function chamar(caminho, opcoes = {}) {
+  const r = await fetch(caminho, { ...opcoes, headers: { "Content-Type": "application/json",
+    ...(est.token ? { Authorization: "Bearer " + est.token } : {}) } });
+  if (r.status === 401) { sair(); throw new Error("Sessão expirada. Entre de novo."); }
+  const corpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(corpo.detail || `Erro ${r.status}`);
+  return corpo;
+}
+function sair() {
+  est.token = null; try { sessionStorage.removeItem("in360_token"); } catch (e) {}
+  $("app").classList.add("oculto"); $("login").classList.remove("oculto"); $("usuario").textContent = "";
+}
+$("login").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); $("erroLogin").textContent = "";
+  try {
+    const t = await chamar("/auth/login", { method: "POST", body: JSON.stringify({ email: $("email").value.trim(), senha: $("senha").value }) });
+    est.token = t.access_token; try { sessionStorage.setItem("in360_token", est.token); } catch (e) {}
+    $("senha").value = ""; await iniciar();
+  } catch (e) { $("erroLogin").textContent = e.message; }
+});
+
+function mesesEntre(de, ate) {
+  const out = []; let [a, m] = de.split("-").map(Number); const [a2, m2] = ate.split("-").map(Number);
+  while (a < a2 || (a === a2 && m <= m2)) { out.push(`${a}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; a++; } }
+  return out;
+}
+
+async function iniciar() {
+  try {
+    const eu = await chamar("/auth/me");
+    const tenants = await chamar("/tenants");
+    if (!tenants.length) throw new Error("Seu usuário não tem acesso a nenhum cliente.");
+    est.tenant = tenants[0];
+    $("usuario").innerHTML = `${esc(eu.nome)} · ${esc(est.tenant.razao_social)} · <a href="#" id="sair">sair</a>`;
+    $("sair").onclick = (e) => { e.preventDefault(); sair(); };
+    est.contas = await chamar(`/tenants/${est.tenant.id}/banco/contas`);
+    $("login").classList.add("oculto"); $("app").classList.remove("oculto");
+    if (!est.contas.length) { $("avisos").innerHTML = `<div class="aviso">Nenhum extrato importado ainda.</div>`; return; }
+    $("conta").innerHTML = `<option value="">Todas</option>` + est.contas.map((c) => `<option value="${c.id}">${esc(c.apelido)}</option>`).join("");
+    const ult = est.contas.map((c) => c.ate).sort().pop().slice(0, 7);
+    const meses = mesesEntre("2025-11", ult);
+    const opts = meses.map((m) => `<option value="${m}">${rotuloMes(m)}</option>`).join("");
+    $("de").innerHTML = opts; $("ate").innerHTML = opts;
+    $("de").value = "2025-11"; $("ate").value = ult;
+    $("cobertura").textContent = est.contas.map((c) => `${c.apelido}: ${dataBr(c.de)} a ${dataBr(c.ate)}`).join(" · ");
+    await carregar();
+  } catch (e) { if (e.message.includes("banco:ler")) { $("app").classList.remove("oculto"); $("login").classList.add("oculto");
+      $("avisos").innerHTML = `<div class="aviso">Seu perfil não tem acesso ao banco (permissão <b>banco:ler</b>).</div>`; }
+    else { sair(); $("erroLogin").textContent = e.message; } }
+}
+
+$("atualizar").onclick = carregar;
+async function carregar() {
+  est.resumo = await chamar(`/tenants/${est.tenant.id}/banco/resumo?de=${$("de").value}&ate=${$("ate").value}`);
+  est.mesSel = null; $("detalhe").classList.add("oculto"); desenhar();
+}
+
+function desenhar() {
+  const contaSel = $("conta").value;
+  const contas = est.resumo.filter((r) => !contaSel || String(r.conta.id) === contaSel);
+  const meses = mesesEntre($("de").value, $("ate").value);
+  let tEnt = 0, tSai = 0, html = "";
+  for (const m of meses) {
+    const partes = contas.map((c) => c.meses[m]).filter(Boolean);
+    if (!partes.length) { html += `<tr><td>${rotuloMes(m)}</td><td colspan="6" class="muted" style="text-align:left">sem extrato</td></tr>`; continue; }
+    const ent = partes.reduce((s, p) => s + num(p.entradas), 0), sai = partes.reduce((s, p) => s + num(p.saidas), 0);
+    const ini = partes.reduce((s, p) => s + num(p.saldo_inicial), 0), fim = partes.reduce((s, p) => s + num(p.saldo_final), 0);
+    const nl = partes.reduce((s, p) => s + p.lancamentos, 0);
+    const temBuraco = contas.some((c) => c.lacunas.some((b) => b.antes_de.slice(0, 7) >= m && b.depois_de.slice(0, 7) <= m));
+    const incompleto = partes.length < contas.length;
+    tEnt += ent; tSai += sai;
+    html += `<tr class="mes ${est.mesSel === m ? "sel" : ""}" data-mes="${m}"><td>${rotuloMes(m)}${m < "2026-02" ? '<span class="tag">antes do GCOM</span>' : ""}
+      ${temBuraco ? '<span class="tag warn" title="O saldo mostra que faltam lançamentos neste mês">⚠ extrato incompleto</span>' : ""}
+      ${incompleto ? '<span class="tag warn">nem todas as contas</span>' : ""}</td>
+      <td>${brl.format(ini)}</td><td class="pos">${brl.format(ent)}</td><td class="neg">${brl.format(sai)}</td>
+      <td class="${cor(ent + sai)}">${brl.format(ent + sai)}</td><td>${brl.format(fim)}</td><td>${nl}</td></tr>`;
+  }
+  html += `<tr class="total"><td>Período</td><td></td><td class="pos">${brl.format(tEnt)}</td><td class="neg">${brl.format(tSai)}</td>
+    <td class="${cor(tEnt + tSai)}">${brl.format(tEnt + tSai)}</td><td></td><td></td></tr>`;
+  $("meses").innerHTML = html;
+  $("kEnt").textContent = brl.format(tEnt); $("kSai").textContent = brl.format(tSai);
+  $("kRes").textContent = brl.format(tEnt + tSai); $("kRes").className = "v " + cor(tEnt + tSai);
+  const finais = contas.map((c) => { const ms = Object.keys(c.meses).filter((m) => m <= $("ate").value).sort(); return ms.length ? num(c.meses[ms.pop()].saldo_final) : 0; });
+  $("kSaldo").textContent = brl.format(finais.reduce((s, v) => s + v, 0));
+  $("kSaldoSub").textContent = contas.map((c, i) => `${c.conta.apelido} ${brl.format(finais[i])}`).join(" · ");
+  const buracos = contas.flatMap((c) => c.lacunas.map((b) => ({ ...b, conta: c.conta.apelido })));
+  $("avisos").innerHTML = buracos.length ? `<div class="aviso"><b>⚠ Extrato incompleto:</b> o saldo mostra que faltam lançamentos nestes trechos
+    (baixe de novo esses períodos no banco, em partes menores).<ul>${buracos.map((b) =>
+    `<li>${esc(b.conta)}: entre ${dataBr(b.depois_de)} e ${dataBr(b.antes_de)} faltam <b>${brl.format(num(b.faltando))}</b> de movimento líquido</li>`).join("")}</ul></div>` : "";
+}
+$("conta").onchange = () => { desenhar(); if (est.mesSel) detalhar(est.mesSel); };
+$("meses").addEventListener("click", (e) => { const tr = e.target.closest("tr.mes"); if (tr) detalhar(tr.dataset.mes); });
+$("tipo").onchange = () => est.mesSel && detalhar(est.mesSel);
+$("busca").oninput = () => { clearTimeout(est.busca); est.busca = setTimeout(() => est.mesSel && detalhar(est.mesSel), 350); };
+
+function linhasGrupo(lista, sinal) {
+  const total = lista.reduce((s, g) => s + Math.abs(num(g.valor)), 0) || 1;
+  return lista.map((g) => `<tr class="grupo"><td>${esc(g.tipo)} <span class="small muted">${g.quantidade}×</span>
+    <div class="barra"><i style="width:${100 * Math.abs(num(g.valor)) / total}%;background:var(${sinal > 0 ? "--bar-pos" : "--bar-neg"})"></i></div></td>
+    <td class="${sinal > 0 ? "pos" : "neg"}">${brl.format(num(g.valor))}</td><td class="small muted">${(100 * Math.abs(num(g.valor)) / total).toFixed(1).replace(".", ",")}%</td></tr>`).join("")
+    || `<tr><td class="muted">nada</td></tr>`;
+}
+
+async function detalhar(m) {
+  est.mesSel = m; desenhar(); $("detalhe").classList.remove("oculto");
+  $("dMes1").textContent = rotuloMes(m); $("dMes2").textContent = rotuloMes(m);
+  const p = new URLSearchParams({ mes: m, tipo: $("tipo").value });
+  if ($("conta").value) p.set("conta_id", $("conta").value);
+  if ($("busca").value.trim()) p.set("busca", $("busca").value.trim());
+  const d = await chamar(`/tenants/${est.tenant.id}/banco/lancamentos?${p}`);
+  $("gEnt").innerHTML = linhasGrupo(d.grupos.filter((g) => g.natureza === "entrada"), 1);
+  $("gSai").innerHTML = linhasGrupo(d.grupos.filter((g) => g.natureza === "saida"), -1);
+  $("qtd").textContent = `${d.total_linhas} lançamento(s)` + (d.total_linhas > d.lancamentos.length ? ` · mostrando ${d.lancamentos.length}` : "");
+  $("lanc").innerHTML = d.lancamentos.map((l) => `<tr><td>${dataBr(l.data)}</td><td>${esc(l.conta)}</td><td class="hist">${esc(l.historico)}</td>
+    <td class="${cor(num(l.valor))}">${brl.format(num(l.valor))}</td><td>${l.saldo == null ? "" : brl.format(num(l.saldo))}</td></tr>`).join("");
+}
+
+if (est.token) iniciar(); else sair();
+</script>
+</body>
+</html>

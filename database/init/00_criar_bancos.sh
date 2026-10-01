@@ -1,0 +1,17 @@
+#!/bin/sh
+# Roda só no PRIMEIRO boot do Postgres (volume vazio).
+#  - papel da aplicação (sem superusuário: Row-Level Security vale para ele)
+#  - usuário e banco do n8n
+set -eu
+
+APP_DB_PASSWORD="$(cat "$APP_DB_PASSWORD_FILE")"
+N8N_DB_PASSWORD="$(cat "$N8N_DB_PASSWORD_FILE")"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-SQL
+	CREATE ROLE "${APP_DB_USER}" LOGIN PASSWORD '${APP_DB_PASSWORD}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+	GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${APP_DB_USER}";
+
+	CREATE ROLE "${N8N_DB_USER}" LOGIN PASSWORD '${N8N_DB_PASSWORD}';
+	CREATE DATABASE "${N8N_DB}" OWNER "${N8N_DB_USER}";
+	REVOKE ALL ON DATABASE "${N8N_DB}" FROM PUBLIC;
+SQL

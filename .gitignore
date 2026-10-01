@@ -1,0 +1,27 @@
+# Segredos
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.pfx
+*.key
+
+# Dados vivos nunca no repositório (ficam em DATA_DIR)
+pgdata/
+backups/
+uploads/
+entrada/
+processados/
+rpa_profiles/
+browser_profile_*/
+logs/
+.legado-vazio/
+
+# Python / ferramentas
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.bak*
+~$*

@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IN-360 · Fornecedores</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #111827; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #1d4ed8; --accent-soft: #dbeafe; --cat: #f3f4f6; --bar: #93c5fd; --warn: #b45309; --bad: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #171a21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f3a;
+            --accent: #60a5fa; --accent-soft: #1e3a5f; --cat: #1f2430; --bar: #2563eb; --warn: #f59e0b; --bad: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+           padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; } header h1 span { color: var(--muted); font-weight: 400; }
+  nav a { margin-right: 14px; color: var(--muted); text-decoration: none; } nav a.on { color: var(--accent); font-weight: 600; }
+  main { padding: 16px 20px 40px; max-width: 1500px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 6px 12px; }
+  button.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  select, input { border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 6px 9px; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  #login { max-width: 360px; margin: 12vh auto; display: grid; gap: 10px; }
+  #login h2 { margin: 0 0 4px; font-size: 18px; }
+  .erro { color: var(--bad); font-size: 13px; min-height: 18px; }
+  .filtros { display: grid; gap: 12px; }
+  .linha { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .rotulo { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border-radius: 999px; padding: 4px 11px; }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 14px 0; }
+  .kpi .v { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tabela-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; vertical-align: top; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 260px; }
+  thead th { position: sticky; top: 0; background: var(--card); font-size: 12px; color: var(--muted); font-weight: 600; z-index: 1; }
+  tr.cat td { background: var(--cat); font-weight: 650; cursor: pointer; }
+  tr.cat td:first-child::before { content: "▾ "; color: var(--muted); }
+  tr.cat.fechada td:first-child::before { content: "▸ "; }
+  tr.forn td:first-child { padding-left: 26px; }
+  tr.receita td { color: var(--accent); font-weight: 600; }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
+  .pct { display: block; font-size: 11.5px; color: var(--muted); }
+  .barra { height: 5px; background: var(--line); border-radius: 3px; margin-top: 4px; min-width: 90px; }
+  .barra i { display: block; height: 100%; background: var(--bar); border-radius: 3px; }
+  .tag { display: inline-block; font-size: 10.5px; padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+         background: var(--accent-soft); color: var(--accent); font-weight: 600; vertical-align: 1px; }
+  .tag.cinza { background: var(--cat); color: var(--muted); }
+  .aviso { color: var(--warn); font-size: 12.5px; }
+  .vazio { padding: 30px; text-align: center; color: var(--muted); }
+  .oculto { display: none !important; }
+  @media (max-width: 700px) { header, main { padding-left: 12px; padding-right: 12px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>IN-360 <span>· Peso dos fornecedores nas despesas</span></h1>
+  <nav><a href="/painel" class="on">Fornecedores</a><a href="/painel/banco">Banco e caixa</a></nav>
+  <div id="usuario" class="small muted"></div>
+</header>
+
+<form id="login" class="card oculto" autocomplete="on">
+  <h2>Entrar</h2>
+  <input id="email" type="email" placeholder="E-mail" required autocomplete="username">
+  <input id="senha" type="password" placeholder="Senha" required autocomplete="current-password">
+  <button class="primario" type="submit">Entrar</button>
+  <div id="erroLogin" class="erro"></div>
+</form>
+
+<main id="app" class="oculto">
+  <section class="card filtros">
+    <div class="linha">
+      <span class="rotulo">Meses</span>
+      <div id="meses" class="chips"></div>
+      <span class="muted small">atalhos:</span>
+      <button type="button" data-atalho="1">Último mês</button>
+      <button type="button" data-atalho="3">Últimos 3</button>
+      <button type="button" data-atalho="todos">Fev/26 → hoje</button>
+    </div>
+    <div class="linha">
+      <span class="rotulo">Visão</span>
+      <div class="seg">
+        <button type="button" class="on" id="visaoComp" data-visao="competencia"
+                title="Mês do documento no DRE do GCOM">Competência</button>
+        <button type="button" id="visaoCaixa" data-visao="caixa"
+                title="Mês em que o dinheiro saiu do banco (extratos Bradesco e Santander)">Caixa</button>
+      </div>
+      <span class="rotulo">% sobre</span>
+      <div class="seg" id="base">
+        <button type="button" data-base="total" class="on">Total de despesas</button>
+        <button type="button" data-base="categoria">Categoria</button>
+        <button type="button" data-base="receita">Receita</button>
+      </div>
+      <span class="rotulo">Categoria</span>
+      <select id="filtroCat"><option value="">Todas</option></select>
+      <input id="busca" type="search" placeholder="Buscar fornecedor…">
+      <button type="button" class="primario" id="atualizar">Atualizar</button>
+      <button type="button" id="csv">Baixar CSV</button>
+    </div>
+    <div id="aviso" class="aviso"></div>
+  </section>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="rotulo">Receita</div><div class="v" id="kReceita">–</div><div class="small muted" id="kReceitaSub"></div></div>
+    <div class="card kpi"><div class="rotulo">Despesas</div><div class="v" id="kDespesas">–</div><div class="small muted" id="kDespSub">visão competência</div></div>
+    <div class="card kpi"><div class="rotulo">Despesas ÷ Receita</div><div class="v" id="kPeso">–</div><div class="small muted" id="kSobra"></div></div>
+    <div class="card kpi"><div class="rotulo">Fornecedores no período</div><div class="v" id="kForn">–</div><div class="small muted" id="kCrm"></div></div>
+  </section>
+
+  <section class="card tabela-wrap">
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="tbody"><tr><td class="vazio" colspan="9">Escolha os meses e clique em Atualizar.</td></tr></tbody>
+    </table>
+  </section>
+  <p class="small muted" id="fonteComp">Fonte: despesas do DRE do GCOM (cópia diária do Raio-X) e faturamento diário (Gestão, igual ao
+    DRE Interativo). Competência = mês do documento no DRE. Documentos rateados entram em cada categoria pelo valor da linha.
+    "O Próprio Escritório" não é fornecedor: aparece aberto pelo sub-tipo.</p>
+  <p class="small muted oculto" id="fonteCaixa">Fonte: extratos Bradesco e Santander. Caixa = mês em que o dinheiro
+    saiu da conta. Categoria = classe do lançamento convertida para o Tipo de Desembolso do GCOM; "A classificar" =
+    o texto do banco não diz o que foi pago (ex.: o mesmo boleto da franqueadora é royalties, fundo de marketing ou
+    REFIN). Receita = vendas recebidas no banco (cartões, vouchers, Pix, iFood). Transferências entre as contas,
+    aportes e retiradas do sócio aparecem à parte e não entram no total.</p>
+</main>
+
+<script>
+const API = "";
+const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const NOMES_MES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+const PADROES = { um_para_um: "1:1", consolidado_mensal: "consolidado", agrupado_vencimento: "por vencimento",
+                  nota_mais_ajuste: "nota+ajuste", livre: "livre" };
+const est = { token: null, tenant: null, disponiveis: [], selecionados: new Set(), base: "total",
+              dados: null, fechadas: new Set(), visao: "competencia" };
+const $ = (id) => document.getElementById(id);
+const rotuloMes = (m) => `${NOMES_MES[+m.slice(5) - 1]}/${m.slice(2, 4)}`;
+const num = (v) => Number(v || 0);
+const pct = (v, b) => (b ? (100 * v / b).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%" : "–");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+try { est.token = sessionStorage.getItem("in360_token"); } catch (e) {}
+
+async function chamar(caminho, opcoes = {}) {
+  const r = await fetch(API + caminho, { ...opcoes, headers: { "Content-Type": "application/json",
+    ...(est.token ? { Authorization: "Bearer " + est.token } : {}), ...(opcoes.headers || {}) } });
+  if (r.status === 401) { sair(); throw new Error("Sessão expirada. Entre de novo."); }
+  const corpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(corpo.detail || `Erro ${r.status}`);
+  return corpo;
+}
+
+function sair() {
+  est.token = null; try { sessionStorage.removeItem("in360_token"); } catch (e) {}
+  $("app").classList.add("oculto"); $("login").classList.remove("oculto"); $("usuario").textContent = "";
+}
+
+$("login").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); $("erroLogin").textContent = "";
+  try {
+    const t = await chamar("/auth/login", { method: "POST",
+      body: JSON.stringify({ email: $("email").value.trim(), senha: $("senha").value }) });
+    est.token = t.access_token; try { sessionStorage.setItem("in360_token", est.token); } catch (e) {}
+    $("senha").value = ""; await iniciar();
+  } catch (e) { $("erroLogin").textContent = e.message; }
+});
+
+async function iniciar() {
+  try {
+    const eu = await chamar("/auth/me");
+    const tenants = await chamar("/tenants");
+    if (!tenants.length) throw new Error("Seu usuário não tem acesso a nenhum cliente.");
+    est.tenant = tenants[0];
+    $("usuario").innerHTML = `${esc(eu.nome)} · ${esc(est.tenant.razao_social)} · <a href="#" id="sair">sair</a>`;
+    $("sair").onclick = (e) => { e.preventDefault(); sair(); };
+    est.disponiveis = await chamar(`/tenants/${est.tenant.id}/paineis/fornecedores/meses?visao=${est.visao}`);
+    $("login").classList.add("oculto"); $("app").classList.remove("oculto");
+    atalho(3); await carregar();
+  } catch (e) { sair(); $("erroLogin").textContent = e.message; }
+}
+
+function desenharMeses() {
+  $("meses").innerHTML = est.disponiveis.map((m) =>
+    `<button type="button" class="chip ${est.selecionados.has(m) ? "on" : ""}" data-mes="${m}">${rotuloMes(m)}</button>`).join("");
+}
+$("meses").addEventListener("click", (e) => {
+  const m = e.target.dataset.mes; if (!m) return;
+  est.selecionados.has(m) ? est.selecionados.delete(m) : est.selecionados.add(m); desenharMeses();
+});
+function atalho(n) {
+  const lista = n === "todos" ? est.disponiveis : est.disponiveis.slice(-n);
+  est.selecionados = new Set(lista); desenharMeses();
+}
+document.querySelectorAll("[data-atalho]").forEach((b) => b.onclick = () => {
+  const n = b.dataset.atalho; atalho(n === "todos" ? "todos" : +n); carregar();
+});
+$("base").addEventListener("click", (e) => {
+  const b = e.target.dataset.base; if (!b) return; est.base = b;
+  $("base").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.base === b)); desenhar();
+});
+document.querySelectorAll("[data-visao]").forEach((b) => b.onclick = async () => {
+  if (b.dataset.visao === est.visao) return;
+  const anterior = est.visao;
+  try {
+    est.visao = b.dataset.visao;
+    est.disponiveis = await chamar(`/tenants/${est.tenant.id}/paineis/fornecedores/meses?visao=${est.visao}`);
+  } catch (e) { est.visao = anterior; $("aviso").textContent = e.message; return; }
+  document.querySelectorAll("[data-visao]").forEach((x) => x.classList.toggle("on", x.dataset.visao === est.visao));
+  $("fonteComp").classList.toggle("oculto", est.visao !== "competencia");
+  $("fonteCaixa").classList.toggle("oculto", est.visao !== "caixa");
+  const antes = [...est.selecionados].filter((m) => est.disponiveis.includes(m));
+  est.selecionados = new Set(antes.length ? antes : est.disponiveis.slice(-3)); desenharMeses(); carregar();
+});
+$("filtroCat").onchange = desenhar; $("busca").oninput = desenhar; $("atualizar").onclick = carregar;
+$("tbody").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr.cat"); if (!tr) return;
+  const c = tr.dataset.cat; est.fechadas.has(c) ? est.fechadas.delete(c) : est.fechadas.add(c); desenhar();
+});
+
+async function carregar() {
+  $("aviso").textContent = "";
+  const meses = [...est.selecionados].sort();
+  if (!meses.length) { $("aviso").textContent = "Escolha pelo menos um mês."; return; }
+  $("atualizar").disabled = true;
+  try {
+    const q = meses.map((m) => "meses=" + m).join("&");
+    est.dados = await chamar(`/tenants/${est.tenant.id}/paineis/fornecedores?${q}&visao=${est.visao}`);
+    const atual = $("filtroCat").value;
+    $("filtroCat").innerHTML = `<option value="">Todas</option>` + est.dados.categorias.map((c) =>
+      `<option ${c.categoria === atual ? "selected" : ""}>${esc(c.categoria)}</option>`).join("");
+    const avisos = [];
+    const semReceita = meses.filter((m) => !num(est.dados.receita[m]));
+    if (semReceita.length) avisos.push(`Sem ${est.visao === "caixa" ? "vendas recebidas" : "faturamento"} em: ${semReceita.map(rotuloMes).join(", ")}.`);
+    if (est.visao === "caixa") {
+      if (est.dados.extrato_ate) avisos.push(`Extrato até ${est.dados.extrato_ate.split("-").reverse().join("/")}.`);
+      const ac = est.dados.categorias.find((c) => c.categoria === "A CLASSIFICAR");
+      if (ac && num(ac.total)) avisos.push(`${brl.format(num(ac.total))} de saídas ainda "a classificar".`);
+    }
+    $("aviso").textContent = avisos.join(" ");
+    desenhar();
+  } catch (e) { $("aviso").textContent = e.message; }
+  finally { $("atualizar").disabled = false; }
+}
+
+function baseDe(linhaCat, m, d) {       // denominador do % conforme a escolha
+  if (est.base === "receita") return num(d.receita[m]);
+  if (est.base === "categoria") return num(linhaCat.valores[m]);
+  return num(d.total_despesas[m]);
+}
+const somaMeses = (obj, meses) => meses.reduce((s, m) => s + num(obj[m]), 0);
+
+function celula(v, b) { return `<td>${brl.format(v)}<span class="pct">${pct(v, b)}</span></td>`; }
+function celulaTotal(v, b) {
+  const largura = b ? Math.max(0, Math.min(100, 100 * v / b)) : 0;
+  return `<td>${brl.format(v)}<span class="pct">${pct(v, b)}</span><div class="barra"><i style="width:${largura}%"></i></div></td>`;
+}
+
+function desenhar() {
+  const d = est.dados; if (!d) return;
+  const meses = d.meses, cat = $("filtroCat").value, busca = $("busca").value.trim().toLowerCase();
+  const totDesp = somaMeses(d.total_despesas, meses), totRec = somaMeses(d.receita, meses);
+
+  $("kReceita").textContent = brl.format(totRec);
+  $("kReceitaSub").textContent = meses.length > 1 ? `${meses.length} meses · média ${brl.format(totRec / meses.length)}/mês` : rotuloMes(meses[0]);
+  $("kDespesas").textContent = brl.format(totDesp);
+  $("kDespSub").textContent = est.visao === "caixa" ? "visão caixa (saídas do banco)" : "visão competência";
+  $("kPeso").textContent = pct(totDesp, totRec);
+  $("kSobra").textContent = totRec ? `sobra antes de outros custos: ${brl.format(totRec - totDesp)}` : "";
+  const nomes = new Set(d.linhas.filter((l) => l.total > 0 && !l.escritorio).map((l) => l.fornecedor));
+  const noCrm = new Set(d.linhas.filter((l) => l.crm_id).map((l) => l.fornecedor));
+  $("kForn").textContent = nomes.size;
+  $("kCrm").textContent = `${noCrm.size} com cadastro no CRM`;
+
+  const cab = meses.map((m) => `<th>${rotuloMes(m)}</th>`).join("");
+  $("thead").innerHTML = `<tr><th>Categoria / fornecedor</th>${cab}<th>Período</th></tr>`;
+  const baseTotal = (linhaCat) => est.base === "receita" ? totRec : est.base === "categoria" ? somaMeses(linhaCat.valores, meses) : totDesp;
+
+  const rotRec = d.visao === "caixa" ? "Receita (vendas recebidas no banco)" : "Receita (faturamento)";
+  let html = `<tr class="receita"><td>${rotRec}</td>${meses.map((m) => `<td>${brl.format(num(d.receita[m]))}</td>`).join("")}<td>${brl.format(totRec)}</td></tr>`;
+  let visiveis = 0;
+  for (const c of d.categorias) {
+    if (cat && c.categoria !== cat) continue;
+    const filhas = d.linhas.filter((l) => l.categoria === c.categoria && (!busca || l.fornecedor.toLowerCase().includes(busca)));
+    if (busca && !filhas.length) continue;
+    const baseCatMes = (m) => est.base === "categoria" ? num(d.total_despesas[m]) : baseDe(c, m, d);
+    const baseCatTot = est.base === "categoria" ? totDesp : baseTotal(c);
+    const fechada = est.fechadas.has(c.categoria);
+    html += `<tr class="cat ${fechada ? "fechada" : ""}" data-cat="${esc(c.categoria)}"><td>${esc(c.categoria)}
+      <span class="tag cinza">${filhas.length}</span></td>${meses.map((m) => celula(num(c.valores[m]), baseCatMes(m))).join("")}
+      ${celulaTotal(somaMeses(c.valores, meses), baseCatTot)}</tr>`;
+    if (fechada) continue;
+    for (const l of filhas) {
+      visiveis++;
+      const tag = l.crm_id ? `<span class="tag" title="Cadastrado no CRM">CRM${l.padrao ? " · " + PADROES[l.padrao] : ""}</span>`
+                : l.escritorio ? `<span class="tag cinza" title="Lançado pelo escritório, sem fornecedor">escritório</span>`
+                : l.sem_favorecido ? `<span class="tag cinza" title="Texto do banco sem regra: falta dizer quem recebeu">sem favorecido</span>` : "";
+      const unid = d.visao === "caixa" ? "lanç." : "doc.";
+      html += `<tr class="forn"><td>${esc(l.fornecedor)}${tag} <span class="small muted">${l.documentos} ${unid}</span></td>
+        ${meses.map((m) => celula(num(l.valores[m]), baseDe(c, m, d))).join("")}${celulaTotal(num(l.total), baseTotal(c))}</tr>`;
+    }
+  }
+  if (!cat && !busca) {
+    const baseTotMes = (m) => est.base === "receita" ? num(d.receita[m]) : num(d.total_despesas[m]);
+    html += `<tr class="total"><td>Total de despesas</td>${meses.map((m) => celula(num(d.total_despesas[m]), baseTotMes(m))).join("")}
+      ${celulaTotal(totDesp, est.base === "receita" ? totRec : totDesp)}</tr>`;
+    for (const [titulo, bloco] of [["Fora do DRE (não entra no total) · + entrada / − saída", d.fora_dre],
+                                   ["Outras entradas", d.outras_entradas]]) {
+      if (!bloco || !bloco.length) continue;
+      html += `<tr class="cat"><td colspan="${meses.length + 2}">${titulo}</td></tr>`;
+      for (const b of bloco) html += `<tr class="forn"><td>${esc(b.categoria)}</td>${meses.map((m) =>
+        `<td>${brl.format(num(b.valores[m]))}</td>`).join("")}<td>${brl.format(num(b.total))}</td></tr>`;
+    }
+  }
+  $("tbody").innerHTML = visiveis || !busca ? html : `<tr><td class="vazio" colspan="${meses.length + 2}">Nenhum fornecedor encontrado.</td></tr>`;
+}
+
+$("csv").onclick = () => {
+  const d = est.dados; if (!d) return;
+  const meses = d.meses, linhas = [["Categoria", "Fornecedor", "CRM", ...meses.flatMap((m) => [rotuloMes(m) + " R$", rotuloMes(m) + " % " + est.base])]];
+  const cats = new Map(d.categorias.map((c) => [c.categoria, c]));
+  for (const l of d.linhas) {
+    const c = cats.get(l.categoria);
+    linhas.push([l.categoria, l.fornecedor, l.crm_id ? "sim" : "", ...meses.flatMap((m) => {
+      const v = num(l.valores[m]), b = baseDe(c, m, d);
+      return [v.toFixed(2).replace(".", ","), b ? (100 * v / b).toFixed(2).replace(".", ",") : ""];
+    })]);
+  }
+  const texto = "﻿" + linhas.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([texto], { type: "text/csv;charset=utf-8" }));
+  a.download = `fornecedores_${d.visao}_${meses[0]}_${meses[meses.length - 1]}.csv`; a.click();
+};
+
+if (est.token) iniciar(); else sair();
+</script>
+</body>
+</html>
