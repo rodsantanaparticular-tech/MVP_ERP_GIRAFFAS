@@ -8,3 +8,4 @@ from modules.raiox_dre.models import Auditoria, Despesa, RegraClassificacao, Syn
 from modules.tenants.models import Loja, Rede, Tenant  # noqa: F401
 from modules.vendas.models import RealizadoDia  # noqa: F401
 from modules.banco.models import ContaBancaria, ExtratoImportacao, ExtratoCategoria, ExtratoLancamento, ExtratoRegra  # noqa: F401
+from modules.conciliacao.models import Conciliacao, ConciliacaoItem  # noqa: F401

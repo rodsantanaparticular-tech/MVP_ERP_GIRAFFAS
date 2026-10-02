@@ -1,8 +1,36 @@
 # STATUS — ERP IN-360 (MVP) · MVP_ERP_GIRAFFAS
 
-**Última atualização:** 30/09/2026 ~19h50 — Getnet analisada (seção abaixo). Antes, ~16h15 — ✅ **Passo 5c-2 no ar: visão CAIXA no painel de fornecedores**
-(http://127.0.0.1:8100/painel → botão "Caixa") + **calendário da franqueadora**. Aguardando do usuário: a pasta com
-TODOS os extratos do Santander.
+**Última atualização:** 02/10/2026 — 🟡 **Passo 5c-3 (motor de match banco × GCOM) construído na sessão NUVEM, ainda NÃO
+instalado no PC** (seção abaixo). Antes: 30/09 ~23h55, abril do Santander completado.
+
+## 🟡 Passo 5c-3: MOTOR DE MATCH BANCO × GCOM (02/10, código pronto, falta rodar no PC)
+- Feito numa sessão **na nuvem** (sem acesso a `C:\giraffas-erp-data`, ao Postgres do PC nem ao Drive). Testado em
+  Postgres 16 local da nuvem só com dados fictícios: **56/56**. Ramo git `claude/amazing-fermat-a3ee0o`.
+- `modules/conciliacao/motor.py` (função pura) + `servico.py` + CLI `python -m modules.conciliacao.rodar --tenant
+  rodiza [--simular]` + API `POST /tenants/{id}/conciliacao/rodar` (conciliacao:operar), `GET …/conciliacao/resumo` e
+  `GET …/conciliacao?status=&mes=` (conciliacao:ler **e** banco:ler: gestor de loja recebe 403).
+- Migração `d1e2f3a4b5c6`: `conciliacoes` + `conciliacao_itens` (RLS nas duas; 1 débito só em 1 conciliação ativa;
+  `acrescimo` = multa/juros por atraso separado da diferença).
+- Regras: um_para_um (RFG) · agrupado_vencimento (Ribeiro: soma por vencimento) · nota_mais_ajuste (JM: agrupa pelo
+  NÚMERO, complemento "1"/"/1"/"D"; pago após o vencimento aceita acréscimo até `parametros.atraso_max_pct`, padrão 5%)
+  · consolidado_mensal (Kelminas: soma do mês × débito do mês seguinte perto de `parametros.dia_debito`, padrão 5;
+  sem soma exata e 1 débito só na janela → "investigar" com a diferença) · livre/sem padrão/sem fornecedor: só valor
+  exato + janela e par único → "sugerido" (nunca "batido"). Empate → "investigar", nunca escolha automática.
+- Cada rodada refaz só o que o motor criou e ninguém confirmou. Resumo por mês mostra também **débitos sem documento**
+  (banco) e **documentos sem pagamento** (GCOM). Transferência entre contas e PREVISTO ficam fora.
+- **Para instalar no PC:** `git pull` deste ramo → backup manual → `alembic upgrade head` → `python -m
+  modules.conciliacao.rodar --tenant rodiza --simular` → conferir os números → rodar sem `--simular`.
+- ⚠️ **Conferir no PC:** os nomes das chaves gravadas em 30/09 no `parametros` do padrão da JM. O motor lê
+  `atraso_max_pct`; se a chave gravada tiver outro nome, vale o padrão de 5% (o mesmo aprovado).
+- **Falta:** tela no painel; confirmar/descartar pela API (hoje só o motor grava); descarte não impede o motor de
+  propor o mesmo par de novo (resolver junto com o botão de descartar).
+- **3 camadas de recebíveis (pedido do usuário, 02/10):** 1 = sistema × digitado (coluna do fechamento de caixa, a
+  mesma da quebra de caixa) · 2 = sistema × adquirentes e parceiros (Cielo, Getnet, iFood, Alelo, Ticket, VR,
+  Pluxee) + **taxa cobrada × contrato** (sem gabarito → em branco, com divergências) · 3 = adquirentes/parceiros ×
+  banco. Ordem aprovada: **3 → 2 → 1**. Só existem no Datalake (Drive); os repositórios `giraffas-datalake` e
+  `giraffas_conciliacao_financeiro` no GitHub estão **vazios**. Portar exige sessão LOCAL no PC (paridade só lá).
+- 🔴 **O repositório `MVP_ERP_GIRAFFAS` no GitHub está PÚBLICO** (visto em 02/10). Tornar privado e, depois, trocar
+  as senhas repetidas dos 5 serviços.
 
 ## 🔎 Getnet × extrato Santander (30/09 ~19h45, só análise; nada importado ainda)
 - Usuário achou os relatórios da Getnet (EC 16081414, 01/02–29/09/26), copiados (não movidos) do Datalake para
